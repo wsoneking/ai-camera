@@ -1,0 +1,8 @@
+node_modules
+dist
+.DS_Store
+*.local
+
+# Regenerated from node_modules by each project's scripts/sync-wasm.mjs on
+# postinstall. See the comment in that file for why this is not committed.
+**/public/wasm

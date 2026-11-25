@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Gesture Christmas Tree</title>
+    <link rel="stylesheet" href="/src/ui/style.css" />
+  </head>
+  <body>
+    <!-- 3D stage -->
+    <canvas id="stage"></canvas>
+
+    <!-- camera feed + hand skeleton overlay (picture-in-picture, bottom-right) -->
+    <div id="cam-panel">
+      <video id="cam" playsinline muted></video>
+      <canvas id="cam-overlay"></canvas>
+      <div id="cam-label">CAMERA</div>
+    </div>
+
+    <!-- mouse-operated toggles -->
+    <div id="controls">
+      <button id="music-btn" type="button" aria-pressed="false">
+        <span class="ico">♪</span>
+        <span class="lbl">音乐</span>
+      </button>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div id="hud-title">
+        <span class="dot"></span>
+        <h1>Gesture Christmas Tree</h1>
+      </div>
+      <div id="hud-gestures">
+        <div class="hand-chip" data-hand="left"><b>L</b><span>—</span></div>
+        <div class="hand-chip" data-hand="right"><b>R</b><span>—</span></div>
+      </div>
+      <ul id="hud-hints"></ul>
+      <div id="hud-stats"></div>
+    </div>
+
+    <!-- center prompt / progress ring -->
+    <div id="prompt">
+      <svg id="prompt-ring" viewBox="0 0 120 120">
+        <circle class="bg" cx="60" cy="60" r="54" />
+        <circle class="fg" cx="60" cy="60" r="54" />
+      </svg>
+      <div id="prompt-text"></div>
+      <div id="prompt-sub"></div>
+    </div>
+
+    <!-- shutter flash for the photo gesture -->
+    <div id="flash"></div>
+
+    <!-- boot / permission gate -->
+    <div id="gate">
+      <div class="gate-card">
+        <h2>用手势点亮一棵圣诞树</h2>
+        <p>这个体验需要使用你的摄像头。所有画面与手势识别都在本机浏览器内完成，不会上传到任何服务器。</p>
+        <button id="gate-btn">开启摄像头</button>
+        <div id="gate-error"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
