@@ -45,7 +45,7 @@ const SNOW_FRAG = /* glsl */ `
  *
  * The pool is sized for a blizzard but only `BASE_COUNT` flakes are drawn at
  * rest; `surge()` opens the draw range up to the full pool and lets it ease
- * back down, which is how a clap turns the weather up.
+ * back down, which is how a celebration turns the weather up.
  */
 export class Snow {
   readonly points: THREE.Points;
@@ -55,7 +55,7 @@ export class Snow {
   private readonly bounds = { x: 26, y: 20, z: 24 };
   private readonly material: THREE.ShaderMaterial;
   private positions: THREE.BufferAttribute;
-  /** 1 right after a clap, easing to 0 over `SURGE_SECONDS`. */
+  /** 1 right after a celebration, easing to 0 over `SURGE_SECONDS`. */
   private surgeAmount = 0;
 
   /** Flakes drawn with no surge running. */

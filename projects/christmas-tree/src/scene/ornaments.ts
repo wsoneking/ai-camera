@@ -17,7 +17,12 @@ const PALETTE = [
   0xffd43b, // gold
 ];
 
-export const ORNAMENT_CAPACITY = 220;
+/**
+ * How many baubles the GPU buffers start out holding. There is no cap on how
+ * many can be hung — the buffers double whenever they fill up — this is just
+ * the first allocation, sized so a normal session never reallocates.
+ */
+const INITIAL_CAPACITY = 220;
 
 interface Ornament {
   from: THREE.Vector3;
@@ -48,6 +53,7 @@ export class Ornaments {
   private haloSize: THREE.BufferAttribute;
 
   private items: Ornament[] = [];
+  private capacity = INITIAL_CAPACITY;
   private elapsed = 0;
 
   private readonly matrix = new THREE.Matrix4();
@@ -76,7 +82,7 @@ export class Ornaments {
       sheenColor: 0xffffff,
     });
 
-    this.mesh = new THREE.InstancedMesh(geo, mat, ORNAMENT_CAPACITY);
+    this.mesh = new THREE.InstancedMesh(geo, mat, INITIAL_CAPACITY);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
@@ -100,7 +106,7 @@ export class Ornaments {
         roughness: 0.28,
         envMapIntensity: 1.8,
       }),
-      ORNAMENT_CAPACITY
+      INITIAL_CAPACITY
     );
     this.caps.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.caps.castShadow = true;
@@ -108,9 +114,9 @@ export class Ornaments {
     this.caps.count = 0;
 
     const haloGeo = new THREE.BufferGeometry();
-    this.haloPos = new THREE.BufferAttribute(new Float32Array(ORNAMENT_CAPACITY * 3), 3);
-    this.haloColor = new THREE.BufferAttribute(new Float32Array(ORNAMENT_CAPACITY * 3), 3);
-    this.haloSize = new THREE.BufferAttribute(new Float32Array(ORNAMENT_CAPACITY), 1);
+    this.haloPos = new THREE.BufferAttribute(new Float32Array(INITIAL_CAPACITY * 3), 3);
+    this.haloColor = new THREE.BufferAttribute(new Float32Array(INITIAL_CAPACITY * 3), 3);
+    this.haloSize = new THREE.BufferAttribute(new Float32Array(INITIAL_CAPACITY), 1);
     haloGeo.setAttribute('position', this.haloPos);
     haloGeo.setAttribute('aColor', this.haloColor);
     haloGeo.setAttribute('aSize', this.haloSize);
@@ -155,21 +161,63 @@ export class Ornaments {
     return this.items.length;
   }
 
-  get isFull(): boolean {
-    return this.items.length >= ORNAMENT_CAPACITY;
+  /**
+   * Doubles the GPU-side capacity, carrying the existing instances over. Three
+   * uploads a fresh GL buffer for a replaced attribute, so swapping the
+   * attribute objects is all that is needed — there is no in-place resize.
+   */
+  private grow(): void {
+    this.capacity *= 2;
+
+    for (const mesh of [this.mesh, this.caps]) {
+      const matrix = new THREE.InstancedBufferAttribute(
+        new Float32Array(this.capacity * 16),
+        16
+      );
+      matrix.array.set(mesh.instanceMatrix.array);
+      matrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceMatrix = matrix;
+
+      if (mesh.instanceColor) {
+        const color = new THREE.InstancedBufferAttribute(
+          new Float32Array(this.capacity * 3),
+          3
+        );
+        color.array.set(mesh.instanceColor.array);
+        mesh.instanceColor = color;
+      }
+    }
+
+    this.haloPos = Ornaments.regrow(this.haloPos, this.capacity * 3, 3);
+    this.haloColor = Ornaments.regrow(this.haloColor, this.capacity * 3, 3);
+    this.haloSize = Ornaments.regrow(this.haloSize, this.capacity, 1);
+    const geo = this.halos.geometry;
+    geo.setAttribute('position', this.haloPos);
+    geo.setAttribute('aColor', this.haloColor);
+    geo.setAttribute('aSize', this.haloSize);
+  }
+
+  private static regrow(
+    attr: THREE.BufferAttribute,
+    length: number,
+    itemSize: number
+  ): THREE.BufferAttribute {
+    const next = new THREE.BufferAttribute(new Float32Array(length), itemSize);
+    next.array.set(attr.array);
+    return next;
   }
 
   /**
-   * Hangs a new bauble that flies in from `from` and lands at `to`.
-   * Returns the colour it was given, or null if the tree is full.
+   * Hangs a new bauble that flies in from `from` and lands at `to`, growing
+   * the buffers if they are full. Returns the colour it was given.
    */
   add(
     from: THREE.Vector3,
     to: THREE.Vector3,
     normal: THREE.Vector3,
     size = 1
-  ): THREE.Color | null {
-    if (this.isFull) return null;
+  ): THREE.Color {
+    if (this.items.length >= this.capacity) this.grow();
 
     const index = this.items.length;
     this.color.setHex(PALETTE[index % PALETTE.length]);

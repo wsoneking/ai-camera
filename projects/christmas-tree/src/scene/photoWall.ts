@@ -24,9 +24,9 @@ function makeWallFalloff(): THREE.Texture {
   return tex;
 }
 
-const PHOTO_WIDTH = 3.2;
+const PHOTO_WIDTH = 4.2;
 const PHOTO_HEIGHT = PHOTO_WIDTH / PHOTO_ASPECT;
-const FRAME_BORDER = 0.15;
+const FRAME_BORDER = 0.18;
 
 /** How many photos hang at once; the oldest is replaced after that. */
 const CAPACITY = 8;
@@ -37,7 +37,7 @@ const CAPACITY = 8;
  * projects below the horizon — at this depth anything under about y=4 reads as
  * standing in the snow rather than hanging on a wall.
  */
-const AREA = { halfWidth: 11.6, minY: 5.5, maxY: 9.4, keepOut: 5.2 } as const;
+const AREA = { halfWidth: 12.2, minY: 5.6, maxY: 9.2, keepOut: 5.8 } as const;
 
 /**
  * The HUD panel sits over the upper-left of the screen, so photos avoid that

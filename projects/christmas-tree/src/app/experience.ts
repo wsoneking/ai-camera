@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Stage } from '../scene/stage';
 import { ChristmasTree } from '../scene/tree';
-import { Ornaments, ORNAMENT_CAPACITY } from '../scene/ornaments';
+import { Grove } from '../scene/grove';
+import { Ornaments } from '../scene/ornaments';
 import { FairyLights } from '../scene/fairyLights';
 import { TreeStar } from '../scene/star';
 import { Snow, Sparkles, MagicOrb } from '../scene/effects';
@@ -32,6 +33,7 @@ type Phase = 'idle' | 'growing' | 'decorating';
 const HOLD = {
   plant: 1.2,
   star: 1.0,
+  celebrate: 0.6,
   lights: 0.7,
   santa: 0.9,
   photo: 0.5,
@@ -139,13 +141,15 @@ interface PinchTrack {
  * - index finger          → sprinkle sparkles
  * - index finger, arc     → draw a rainbow over the scene
  * - two hands, three up   → sweep the scene clean (the photos stay)
- * - clap both hands       → a blizzard, a shower of presents, and fireworks
+ * - two victory signs     → a blizzard, a shower of presents, and fireworks
  * - pinky up (hold)       → Santa's sleigh flies across the sky
  * - two thumbs up         → 3-second timer, then a photo onto the back wall
  * - both index (hold)     → reset
  */
 export class Experience {
   private tree = new ChristmasTree();
+  /** Static backdrop pines. Built once, never animated, never reset. */
+  private grove = new Grove();
   private ornaments = new Ornaments();
   private lights = new FairyLights();
   private star = new TreeStar();
@@ -204,6 +208,7 @@ export class Experience {
     private sfx: SoundEffects
   ) {
     this.tree.group.add(this.ornaments.group, this.lights.group, this.star.group, this.preview.group);
+    this.stage.world.add(this.grove.group);
     this.stage.world.add(this.tree.group);
     this.stage.world.add(this.gifts.group, this.giftRain.group, this.santa.group);
     this.stage.world.add(this.snow.points, this.sparkles.points, this.orb.group, this.fireworks.points);
@@ -391,7 +396,6 @@ export class Experience {
     const from = this.toTreeLocal(stageFrom);
     const snap = this.tree.snapToSurface(from);
     const color = this.ornaments.add(from, snap.point, snap.normal, size);
-    if (!color) return;
 
     // Burst in the bauble's own colour so the feedback reads as "that one".
     this.sparkles.burst(this.fromTreeLocal(snap.point), {
@@ -415,8 +419,8 @@ export class Experience {
   }
 
   /**
-   * The clap payoff: the weather turns, presents rain down, and shells go up.
-   * Clapping again while it is still running simply stacks more on top.
+   * The celebration payoff: the weather turns, presents rain down, and shells
+   * go up. Firing again while it is still running simply stacks more on top.
    */
   private celebrate(): void {
     this.snow.surge();
@@ -551,8 +555,13 @@ export class Experience {
     // ---- two-handed gestures ----------------------------------------------
     // Resolved before the phase logic so they work whether or not the tree is
     // up, and so `engaged` can hold off the one-hand palm controls below.
-    const two = this.twoHand.update(hands, dt);
-    if (two.clapped) this.celebrate();
+    const two = this.twoHand.update(hands);
+
+    // Two victory signs, held briefly: the big celebration. A short hold (not
+    // an instant trigger) keeps a hand passing through the pose from setting
+    // the whole sky off.
+    const celebrateHold = this.hold(hands, 'victory', HOLD.celebrate, 'celebrate', 'two');
+    if (celebrateHold.fired) this.celebrate();
 
     const santaHold = this.hold(hands, 'pinky_up', HOLD.santa, 'santa');
     if (santaHold.fired) this.launchSanta();
@@ -597,7 +606,11 @@ export class Experience {
         ring = 0;
       }
       hints.push({ key: '张开手掌', label: '种下圣诞树', active: true });
-      hints.push({ key: '双手拍手', label: '暴雪 + 礼物雨 + 烟花', active: this.fireworks.isBusy });
+      hints.push({
+        key: '双手胜利手势',
+        label: '暴雪 + 礼物雨 + 烟花',
+        active: celebrateHold.progress > 0 || this.fireworks.isBusy,
+      });
       hints.push({
         key: '双手拇指',
         label: '倒数 3 秒拍照',
@@ -618,7 +631,8 @@ export class Experience {
     if (this.phase === 'decorating') {
       this.updatePinches(hands, dt);
 
-      const starHold = this.hold(hands, 'victory', HOLD.star, 'star');
+      // Exactly one hand: two victory signs are the celebration gesture.
+      const starHold = this.hold(hands, 'victory', HOLD.star, 'star', 'one');
       if (starHold.fired && !this.star.isPlaced) {
         this.star.place(this.tree.apexLocal);
         this.sparkles.burst(this.fromTreeLocal(this.tree.apexLocal), {
@@ -692,7 +706,7 @@ export class Experience {
       // near the middle sat in the dead zone and did nothing at all).
       //
       // While the hands are together the grab stands down: swinging two open
-      // palms into a clap would otherwise jolt the tree round and shrink it.
+      // palms together would otherwise jolt the tree round and shrink it.
       const palms = two.engaged ? [] : hands.filter((h) => h.gesture === 'open_palm');
 
       if (palms.length > 0) {
@@ -764,7 +778,11 @@ export class Experience {
         { key: '食指指向', label: '撒出魔法亮粉', active: Boolean(pointer) },
         { key: '食指画弧', label: '画出一道彩虹', active: this.rainbow.isVisible },
         { key: '双手三指', label: '清空场景（照片保留）', active: clearHold.progress > 0 },
-        { key: '双手拍手', label: '暴雪 + 礼物雨 + 烟花', active: this.fireworks.isBusy },
+        {
+          key: '双手胜利手势',
+          label: '暴雪 + 礼物雨 + 烟花',
+          active: celebrateHold.progress > 0 || this.fireworks.isBusy,
+        },
         { key: '竖起小指', label: '圣诞老人驾鹿车飞过', active: santaHold.progress > 0 || this.santa.isFlying },
         {
           key: '双手拇指',
@@ -802,7 +820,7 @@ export class Experience {
       this.lastSleigh = null;
     }
 
-    // Bloom tracks the fairy lights, with a decaying boost after a clap.
+    // Bloom tracks the fairy lights, with a decaying boost after a celebration.
     this.bloomBoost = Math.max(0, this.bloomBoost - dt * 0.18);
     this.stage.setBloom((this.lights.isOn ? 0.82 : 0.62) + this.bloomBoost);
 
@@ -854,7 +872,7 @@ export class Experience {
   }
 
   get statsLine(): string {
-    return `装饰 ${this.ornaments.count}/${ORNAMENT_CAPACITY} · 彩灯 ${
+    return `装饰 ${this.ornaments.count} · 彩灯 ${
       this.lights.isOn ? 'ON' : 'OFF'
     } · 星星 ${this.star.isPlaced ? 'ON' : 'OFF'} · 照片 ${this.photoWall.count}`;
   }
